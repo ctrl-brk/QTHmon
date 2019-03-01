@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "QTHmon": {
+      "commandName": "Project",
+      "environmentVariables": {
+        "NETCOREAPP_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}
