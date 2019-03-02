@@ -243,7 +243,7 @@ namespace QTHmon
             var ind = post.Description.IndexOf('$');
             if (ind < 0) return null;
             ind++;
-            while (cnt < 15 && char.IsNumber(post.Description[ind]))
+            while (cnt < 15 && ind < post.Description.Length && char.IsNumber(post.Description[ind]))
             {
                 value += post.Description[ind++];
                 cnt++;
@@ -267,28 +267,35 @@ namespace QTHmon
                 result.Append("<span class='price'>$");
                 ind++;
                 var cnt = 0;
-                for (; cnt < 15 && char.IsNumber(text[ind]); cnt++)
+                for (; cnt < 15 && ind < text.Length && char.IsNumber(text[ind]); cnt++)
                 {
                     result.Append(text[ind++]);
                 }
                 result.Append("</span>");
 
+                if (ind >= text.Length) break;
+
                 prevInd = ind;
                 ind = text.IndexOf('$', ind + cnt);
             }
 
-            result.Append(text.Substring(prevInd));
+            if (ind < text.Length)
+                result.Append(text.Substring(prevInd));
 
             return result.ToString();
         }
 
         private void SendResults()
         {
-            if (_newPosts.Count == 0) return;
+            if (_newPosts.Count == 0)
+            {
+                _logger.LogDebug("No new posts found");
+                return;
+            }
 
             var msg = new MailMessage(_settings.EmailFrom, _settings.EmailTo)
             {
-                Subject = string.Format(_settings.EmailSubjectFormat, DateTime.Now),
+                Subject = string.Format(_settings.EmailSubjectFormat, _newPosts.Count, DateTime.Now),
                 SubjectEncoding = Encoding.UTF8,
                 BodyEncoding = Encoding.UTF8,
                 IsBodyHtml = true
