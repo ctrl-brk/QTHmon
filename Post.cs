@@ -12,7 +12,7 @@ namespace QTHmon
         public DateTime SubmittedOn { get; set; }
         public DateTime? ModifiedOn { get; set; }
         public string CallSign { get; set; }
-        public int? Price { get; set; }
+        public string Price { get; set; }
         public bool IsNew { get; set; }
 
         public DateTime ActivityDate => ModifiedOn ?? SubmittedOn;
