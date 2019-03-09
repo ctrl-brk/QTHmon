@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Mail;
@@ -75,7 +76,6 @@ namespace QTHmon
 
             using (var hc = new HttpClient(handler))
             {
-                string msg;
                 while (pageNum < _settings.MaxPages)
                 {
                     var formData = new List<KeyValuePair<string, string>>
@@ -97,7 +97,7 @@ namespace QTHmon
                     _logger.LogDebug($"Fetching page {pageNum + 1} of maximum {_settings.MaxPages}");
                     var res = await hc.PostAsync(uri, content, token);
                     if (token.IsCancellationRequested) break;
-                    msg = await res.Content.ReadAsStringAsync();
+                    var msg = await res.Content.ReadAsStringAsync();
                     startIndex += 10;
                     pageNum++;
                     if (!ScanResults(msg)) break;
@@ -116,6 +116,7 @@ namespace QTHmon
 
         private bool ScanResults(string msg)
         {
+            // ReSharper disable InconsistentNaming
             const string NO_ADS = "There were no ads that matched your search";
             const string START = "Displaying ads ";
             const string TO = " to ";
@@ -123,6 +124,7 @@ namespace QTHmon
             const string END = " ads ";
             const string AD_START = "<DT><IMG SRC=\"https://swap.qth.com/mdoc";
             const string AD_END = "<br /><br />";
+            // ReSharper restore InconsistentNaming
 
             if (msg.IndexOf(NO_ADS, StringComparison.Ordinal) > 0) return false;
 
@@ -235,7 +237,7 @@ namespace QTHmon
             return call.Substring(ind + 1);
         }
 
-        private static int? GetPrice(Post post)
+        private static string GetPrice(Post post)
         {
             var value = "";
             var cnt = 0;
@@ -243,13 +245,13 @@ namespace QTHmon
             var ind = post.Description.IndexOf('$');
             if (ind < 0) return null;
             ind++;
-            while (cnt < 15 && ind < post.Description.Length && char.IsNumber(post.Description[ind]))
+            while (cnt < 15 && ind < post.Description.Length && (char.IsNumber(post.Description[ind]) || new [] { ' ', ',', '.' }.Contains(post.Description[ind])))
             {
                 value += post.Description[ind++];
                 cnt++;
             }
 
-            return value.Length > 0 ? int.Parse(value) : (int?)null;
+            return value.Length > 0 ? value : null;
         }
 
         private static string HighlightPrices(string text)
@@ -267,7 +269,7 @@ namespace QTHmon
                 result.Append("<span class='price'>$");
                 ind++;
                 var cnt = 0;
-                for (; cnt < 15 && ind < text.Length && char.IsNumber(text[ind]); cnt++)
+                for (; cnt < 15 && ind < text.Length && (char.IsNumber(text[ind]) || new[] { ' ', ',', '.' }.Contains(text[ind])); cnt++)
                 {
                     result.Append(text[ind++]);
                 }
@@ -338,7 +340,7 @@ namespace QTHmon
                 sb.AppendLine("    <td class='title'>");
 
                 sb.Append($"      <a class='link' href='https://swap.qth.com/view_ad.php?counter={post.Id}' target='_blank'>{post.Title}</a>");
-                if (post.Price.HasValue) sb.Append($"&nbsp;&nbsp;&nbsp;${post.Price}");
+                if (post.Price != null) sb.Append($"&nbsp;&nbsp;&nbsp;${post.Price}");
                 sb.AppendLine($"<a class='cat' href='https://swap.qth.com/c_{post.Category}.php' target='_blank'>{post.Category}</a>");
 
                 sb.AppendLine("    </td>");
