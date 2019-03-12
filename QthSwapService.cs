@@ -232,7 +232,8 @@ namespace QTHmon
 
         private static string GetCallSign(string src, ref int index)
         {
-            var call = GetValue(src, "Callsign <a", "</a>", ref index);
+            var call = GetValue(src, "Callsign <a", "</a>", ref index, false);
+            if (call == null) return null;
             var ind = call.IndexOf('>');
             return call.Substring(ind + 1);
         }
@@ -353,7 +354,10 @@ namespace QTHmon
                 sb.AppendLine("  <tr>");
                 sb.AppendLine("    <td class='info'>");
 
-                sb.Append($"      Submitted by <a class='call' href='https://www.qrz.com/lookup?tquery={post.CallSign}&mode=callsign' target='_blank'>{post.CallSign}</a> on {post.SubmittedOn:d}");
+                sb.Append("      Submitted ");
+                if (post.CallSign != null)
+                    sb.Append($"by <a class='call' href='https://www.qrz.com/lookup?tquery={post.CallSign}&mode=callsign' target='_blank'>{post.CallSign}</a> "); 
+                sb.Append($"on {post.SubmittedOn:d}");
                 if (post.ModifiedOn.HasValue) sb.Append($" Modified: <span class='modified'>{post.ModifiedOn:d}</span>");
                 sb.AppendLine("");
 
