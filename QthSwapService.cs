@@ -276,9 +276,10 @@ namespace QTHmon
                 }
                 result.Append("</span>");
 
-                if (ind >= text.Length) break;
-
                 prevInd = ind;
+
+                if (ind + cnt >= text.Length) break;
+
                 ind = text.IndexOf('$', ind + cnt);
             }
 
