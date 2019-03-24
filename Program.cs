@@ -25,7 +25,8 @@ namespace QTHmon
                     svc.Configure<ConsoleLifetimeOptions>(opt => opt.SuppressStatusMessages = true)
                     .Configure<HostOptions>(opt => opt.ShutdownTimeout = TimeSpan.FromSeconds(10))
                     .Configure<AppSettings>(ctx.Configuration.GetSection("AppSettings"))
-                    .AddSingleton<IHostedService, QthSwapService>();
+                    .AddSingleton<IHostedService, HostedService>()
+                    .AddSingleton<IQthSwapHandler, QthSwapHandler>();
                 })
                 .ConfigureLogging((ctx, cfg) =>
                 {
