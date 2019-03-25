@@ -52,11 +52,10 @@ namespace QTHmon
         {
             var results = new List<ScanResult>();
 
-            var res = await _qthSwapHandler.ProcessKeywordsAsync(token);
-            if (res != null) results.Add(res);
+            //var keyRes = await _qthSwapHandler.ProcessKeywordsAsync(token);
+            //if (keyRes != null) results.Add(keyRes);
 
-            res = await _qthSwapHandler.ProcessCategoriesAsync(token);
-            if (res != null) results.Add(res);
+            results.AddRange((await _qthSwapHandler.ProcessCategoriesAsync(token)).Where(catRes => catRes != null));
 
             SendResults(results);
             _appLifeTime.StopApplication();
@@ -66,7 +65,9 @@ namespace QTHmon
         {
             var msg = new MailMessage(_settings.EmailFrom, _settings.EmailTo)
             {
+                // ReSharper disable PossibleMultipleEnumeration
                 Subject = string.Format(_settings.EmailSubjectFormat, results.Sum(x => x.Items), results.Min(x => x.LastScan)),
+                // ReSharper restore PossibleMultipleEnumeration
                 SubjectEncoding = Encoding.UTF8,
                 BodyEncoding = Encoding.UTF8,
                 IsBodyHtml = true
@@ -100,6 +101,7 @@ namespace QTHmon
 <body>
 ");
 
+            // ReSharper disable once PossibleMultipleEnumeration
             foreach(var res in results)
             {
                 sb.AppendLine($"<div class='source'>{res.Title}</div>\n<div>");
