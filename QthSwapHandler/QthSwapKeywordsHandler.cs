@@ -17,7 +17,7 @@ namespace QTHmon
             _thisScan = new ScanInfo { Ids = new List<int>(), OtherIds = new List<int>() };
             _newPosts = new List<Post>();
 #if DEBUG
-            File.Delete(_settings.SwapQthCom.KeywordSearch.ResultFile);
+            //File.Delete(_settings.SwapQthCom.KeywordSearch.ResultFile);
 #endif
             if (_settings.SwapQthCom.KeywordSearch.MaxPages <= 0) return null;
 
@@ -65,37 +65,5 @@ namespace QTHmon
 
             return BuildResults(_lastKeywordScan);
         }
-
-        private static Post ProcessKeywordPost(string html)
-        {
-            const string CATEGORY = "<font size=2 face=arial color=0000FF>";
-            const string TITLE = "<font size=2 face=arial> - ";
-            const string DESC = "<DD><font size=2 face=arial>";
-            const string END = "</font>";
-            const string ID = "<DD><font size=1 face=arial>Listing #";
-            const string SUBMIT = "Submitted on ";
-            const string MODIFIED = "Modified on ";
-            const string IMAGE = "camera_icon.gif";
-
-            var index = 0;
-            var post = new Post
-            {
-                IsNew = html[0] == '2',
-                Category = GetValue(html, CATEGORY, END, ref index).ToLower(),
-                Title = GetValue(html, TITLE, END, ref index),
-                HasImage = html.IndexOf(IMAGE, index, StringComparison.Ordinal) > 0,
-                Description = HighlightPrices(GetValue(html, DESC, END, ref index)),
-                Id = int.Parse(GetValue(html, ID, " -  ", ref index)),
-                SubmittedOn = DateTime.Parse(GetValue(html, SUBMIT, " by ", ref index)),
-                CallSign = GetCallSign(html, ref index)
-            };
-
-            DateTime.TryParse(GetValue(html, MODIFIED, " - IP:", ref index, false), out var dt);
-            post.ModifiedOn = dt == DateTime.MinValue ? (DateTime?)null : dt;
-
-            post.Price = GetPrice(post);
-
-            return post;
-        }
-    }
+}
 }

@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Mail;
@@ -52,8 +53,8 @@ namespace QTHmon
         {
             var results = new List<ScanResult>();
 
-            //var keyRes = await _qthSwapHandler.ProcessKeywordsAsync(token);
-            //if (keyRes != null) results.Add(keyRes);
+            var keyRes = await _qthSwapHandler.ProcessKeywordsAsync(token);
+            if (keyRes != null) results.Add(keyRes);
 
             results.AddRange((await _qthSwapHandler.ProcessCategoriesAsync(token)).Where(catRes => catRes != null));
 
@@ -66,7 +67,7 @@ namespace QTHmon
             var msg = new MailMessage(_settings.EmailFrom, _settings.EmailTo)
             {
                 // ReSharper disable PossibleMultipleEnumeration
-                Subject = string.Format(_settings.EmailSubjectFormat, results.Sum(x => x.Items), results.Min(x => x.LastScan)),
+                Subject = results.Any() ? string.Format(_settings.EmailSubjectResultsFormat, results.Sum(x => x.Items), results.Min(x => x.LastScan)) : _settings.EmailSubjectEmptyFormat,
                 // ReSharper restore PossibleMultipleEnumeration
                 SubjectEncoding = Encoding.UTF8,
                 BodyEncoding = Encoding.UTF8,
@@ -82,7 +83,7 @@ namespace QTHmon
     * {box-sizing: border-box}
     html, body {margin:0; padding:0}
 
-    .source {width: 100%; font-size: 1rem; font-weight: bold; text-align: center; vertical-align: middle; height: 1.5rem; }
+    .source {width: 100%; font-size: 2rem; font-weight: bold; text-align: center; color: cadetblue; }
     table {border: 1px solid #aaa; margin-bottom: 5px; width: 100%}
     tr, td {border: none; padding: 0; margin: 0}
     td.thumb {vertical-align: top; max-width: 300px}

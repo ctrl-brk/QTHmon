@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
-using System.Threading.Tasks;
 
 // ReSharper disable once CheckNamespace
 namespace QTHmon
@@ -99,24 +98,55 @@ namespace QTHmon
                 var adEndIndex = msg.IndexOf(AD_END, adStartIndex, StringComparison.Ordinal);
                 if (adEndIndex < 0) throw new ApplicationException("Invalid response format");
 
-                Post post;
-
-                if (scanType == ScanType.Keyword)
-                    post = ProcessKeywordPost(msg.Substring(adStartIndex, adEndIndex - adStartIndex));
-                else
-                    post = ProcessCategoryPost(msg.Substring(adStartIndex, adEndIndex - adStartIndex));
+                var post = ProcessPost(msg.Substring(adStartIndex, adEndIndex - adStartIndex), scanType);
 
                 if (post.ActivityDate < lastScan.Date) return false;
                 if (post.ActivityDate == lastScan.Date && lastScan.Ids.IndexOf(post.Id) >= 0) return false;
 
-                _newPosts.Add(post);
+                if (lastScan.OtherIds != null && lastScan.OtherIds.IndexOf(post.Id) < 0)  //ignore if listed in other searches before
+                {
+                    _newPosts.Add(post);
 
-                if (_thisScan.Date == DateTime.MinValue)
-                    _thisScan.Date = post.ActivityDate;
+                    if (_thisScan.Date == DateTime.MinValue)
+                        _thisScan.Date = post.ActivityDate;
+                }
 
             } while (adStartIndex > 0);
 
             return true;
+        }
+
+        private static Post ProcessPost(string html, ScanType scanType)
+        {
+            const string CATEGORY = "<font size=2 face=arial color=0000FF>";
+            var TITLE = scanType == ScanType.Keyword ? "<font size=2 face=arial> - " : "<font size=2 face=arial COLOR=\"#0000FF\">";
+            const string DESC = "<DD><font size=2 face=arial>";
+            const string END = "</font>";
+            const string ID = "<DD><font size=1 face=arial>Listing #";
+            const string SUBMIT = "Submitted on ";
+            const string MODIFIED = "Modified on ";
+            const string IMAGE = "camera_icon.gif";
+
+            var index = 0;
+            var post = new Post
+            {
+                IsNew = html[0] == '2',
+                Category = GetValue(html, CATEGORY, END, ref index, false),
+                Title = GetValue(html, TITLE, END, ref index),
+                HasImage = html.IndexOf(IMAGE, index, StringComparison.Ordinal) > 0,
+                Description = HighlightPrices(GetValue(html, DESC, END, ref index)),
+                Id = int.Parse(GetValue(html, ID, " -  ", ref index)),
+                SubmittedOn = DateTime.Parse(GetValue(html, SUBMIT, " by ", ref index)),
+                CallSign = GetCallSign(html, ref index)
+            };
+
+            DateTime.TryParse(GetValue(html, MODIFIED, " - IP:", ref index, false), out var dt);
+            post.ModifiedOn = dt == DateTime.MinValue ? (DateTime?)null : dt;
+
+            post.Price = GetPrice(post);
+            if (!string.IsNullOrEmpty(post.Category)) post.Category = post.Category.ToLower();
+
+            return post;
         }
 
         private static string GetValue(string src, string startToken, string endToken, ref int index, bool req = true)
@@ -214,7 +244,7 @@ namespace QTHmon
 
                 sb.Append($"      <a class='link' href='https://swap.qth.com/view_ad.php?counter={post.Id}' target='_blank'>{post.Title}</a>");
                 if (post.Price != null) sb.Append($"&nbsp;&nbsp;&nbsp;${post.Price}");
-                sb.AppendLine($"<a class='cat' href='https://swap.qth.com/c_{post.Category}.php' target='_blank'>{post.Category}</a>");
+                if (post.Category != null) sb.AppendLine($"<a class='cat' href='https://swap.qth.com/c_{post.Category}.php' target='_blank'>{post.Category}</a>");
 
                 sb.AppendLine("    </td>");
                 sb.AppendLine("  </tr>");
@@ -237,9 +267,6 @@ namespace QTHmon
                 sb.AppendLine("  </tr>");
                 sb.AppendLine("</table>\n");
             }
-
-            //File.WriteAllText("msg.html", sb.ToString());
-            //return;
 
             return new ScanResult { Title = _settings.SwapQthCom.Title, Items = _newPosts.Count, LastScan = lastScan.Date, Html = sb.ToString() };
         }

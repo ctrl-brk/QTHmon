@@ -32,7 +32,8 @@ namespace QTHmon
         public string Password { get; set; }
         public string EmailFrom { get; set; }
         public string EmailTo { get; set; }
-        public string EmailSubjectFormat { get; set; }
+        public string EmailSubjectResultsFormat { get; set; }
+        public string EmailSubjectEmptyFormat { get; set; }
         public SwapQthCom SwapQthCom { get; set; }
     }
 }
