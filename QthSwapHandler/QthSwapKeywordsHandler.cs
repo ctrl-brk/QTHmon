@@ -65,5 +65,5 @@ namespace QTHmon
 
             return BuildResults(_lastKeywordScan);
         }
-}
+    }
 }

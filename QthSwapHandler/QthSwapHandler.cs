@@ -103,13 +103,12 @@ namespace QTHmon
                 if (post.ActivityDate < lastScan.Date) return false;
                 if (post.ActivityDate == lastScan.Date && lastScan.Ids.IndexOf(post.Id) >= 0) return false;
 
-                if (lastScan.OtherIds != null && lastScan.OtherIds.IndexOf(post.Id) < 0)  //ignore if listed in other searches before
-                {
-                    _newPosts.Add(post);
+                if (lastScan.OtherIds != null && lastScan.OtherIds.IndexOf(post.Id) >= 0) continue; //ignore if listed in other searches before
 
-                    if (_thisScan.Date == DateTime.MinValue)
-                        _thisScan.Date = post.ActivityDate;
-                }
+                _newPosts.Add(post);
+
+                if (_thisScan.Date == DateTime.MinValue)
+                    _thisScan.Date = post.ActivityDate;
 
             } while (adStartIndex > 0);
 
@@ -167,9 +166,8 @@ namespace QTHmon
         private static string GetCallSign(string src, ref int index)
         {
             var call = GetValue(src, "Callsign <a", "</a>", ref index, false);
-            if (call == null) return null;
-            var ind = call.IndexOf('>');
-            return call.Substring(ind + 1);
+            var ind = call?.IndexOf('>');
+            return call?.Substring(ind.Value + 1);
         }
 
         private static string GetPrice(Post post)
