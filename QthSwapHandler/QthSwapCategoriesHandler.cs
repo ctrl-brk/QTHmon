@@ -46,19 +46,16 @@ namespace QTHmon
         {
             var pageNum = 0;
 
-            using (var hc = new HttpClient(_httpHandler))
+            while (pageNum < _settings.SwapQthCom.CategorySearch.MaxPages)
             {
-                while (pageNum < _settings.SwapQthCom.CategorySearch.MaxPages)
-                {
-                    var uri = new Uri($"https://swap.qth.com/c_{category}.php?page={pageNum+1}");
+                var uri = new Uri($"https://swap.qth.com/c_{category}.php?page={pageNum+1}");
 
-                    _logger.LogDebug($"Fetching {category} page {pageNum + 1} of maximum {_settings.SwapQthCom.CategorySearch.MaxPages}");
-                    var res = await hc.GetAsync(uri, token);
-                    if (token.IsCancellationRequested) break;
-                    var msg = await res.Content.ReadAsStringAsync();
-                    pageNum++;
-                    if (!ScanResults(msg, ScanType.Category)) break;
-                }
+                _logger.LogDebug($"Fetching {category} page {pageNum + 1} of maximum {_settings.SwapQthCom.CategorySearch.MaxPages}");
+                var res = await _httpClient.GetAsync(uri, token);
+                if (token.IsCancellationRequested) break;
+                var msg = await res.Content.ReadAsStringAsync();
+                pageNum++;
+                if (!ScanResults(msg, ScanType.Category)) break;
             }
 
             _newPosts.ForEach(x => _thisScan.Ids.Add(x.Id));

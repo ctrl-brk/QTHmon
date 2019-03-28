@@ -25,7 +25,8 @@ namespace QTHmon
             public List<int> OtherIds;
         }
 
-        private readonly HttpClientHandler _httpHandler;
+        private readonly HttpClientHandler _httpClientHandler;
+        private readonly HttpClient _httpClient;
         private readonly ILogger _logger;
         private readonly AppSettings _settings;
 
@@ -39,7 +40,8 @@ namespace QTHmon
         {
             _logger = logger;
             _settings = settings.Value;
-            _httpHandler = new HttpClientHandler();
+            _httpClientHandler = new HttpClientHandler();
+            _httpClient = new HttpClient(_httpClientHandler);
         }
 
         private bool ScanResults(string msg, ScanType scanType)
@@ -267,6 +269,12 @@ namespace QTHmon
             }
 
             return new ScanResult { Title = _settings.SwapQthCom.Title, Items = _newPosts.Count, LastScan = lastScan.Date, Html = sb.ToString() };
+        }
+
+        public void Dispose()
+        {
+            _httpClient.Dispose();
+            _httpClientHandler.Dispose();
         }
     }
 }

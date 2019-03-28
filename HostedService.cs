@@ -46,6 +46,7 @@ namespace QTHmon
         public Task StopAsync(CancellationToken cancellationToken)
         {
             _logger.LogInformation("Stopping");
+            _qthSwapHandler.Dispose();
             return Task.CompletedTask;
         }
 
