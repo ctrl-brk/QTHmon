@@ -1,0 +1,72 @@
+﻿using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
+
+// ReSharper disable once CheckNamespace
+namespace QTHmon
+{
+    public partial class QthHandler
+    {
+        public async Task<ScanResult> ProcessKeywordsAsync(HttpClient httpClient, CookieContainer cookies, CancellationToken token)
+        {
+            if (_settings.QthCom.KeywordSearch.MaxPosts <= 0) return null;
+
+            _thisScan = new ScanInfo { Ids = new List<int>(), OtherIds = new List<int>() };
+            _newPosts = new List<Post>();
+#if DEBUG && CLEARHIST
+            File.Delete(_settings.QthCom.KeywordSearch.ResultFile);
+#endif
+            int startIndex = 0, postNum = 0;
+            var uri = new Uri("https://swap.qth.com/advsearchresults.php");
+
+            if (File.Exists(_settings.QthCom.KeywordSearch.ResultFile))
+            {
+                _lastKeywordScan = JsonConvert.DeserializeObject<ScanInfo>(File.ReadAllText(_settings.QthCom.KeywordSearch.ResultFile));
+                _lastKeywordScan.OtherIds = new List<int>();
+            }
+
+            while (postNum < _settings.QthCom.KeywordSearch.MaxPosts)
+            {
+                var formData = new List<KeyValuePair<string, string>>
+                {
+                    new KeyValuePair<string, string>("anywords", string.Join(' ', _settings.QthCom.KeywordSearch.Keywords.Split(',')))
+                };
+
+                if (startIndex > 0)
+                {
+                    formData.AddRange(new[]
+                     {
+                         new KeyValuePair<string, string>("startnum", startIndex.ToString()),
+                         new KeyValuePair<string, string>("submit", "Next 10 Ads")
+                     });
+                }
+
+                var content = new FormUrlEncodedContent(formData);
+
+                _logger.LogDebug($"Fetching \"{_settings.QthCom.KeywordSearch.Keywords}\" page {postNum/PAGE_SIZE + 1} of maximum {_settings.QthCom.KeywordSearch.MaxPosts/PAGE_SIZE} from qth.com");
+                var res = await httpClient.PostAsync(uri, content, token);
+                if (token.IsCancellationRequested) break;
+                var msg = await res.Content.ReadAsStringAsync();
+                startIndex += 10;
+                postNum += PAGE_SIZE;
+                if (!await ScanResults(msg, ScanType.Keyword, httpClient)) break;
+            }
+
+            _newPosts.ForEach(x => _thisScan.Ids.Add(x.Id));
+
+#if SAVEHIST
+            if (_newPosts.Count > 0)
+                File.WriteAllText(_settings.QthCom.KeywordSearch.ResultFile, JsonConvert.SerializeObject(_thisScan));
+#endif
+            _lastKeywordScan.Ids = new List<int>(_thisScan.Ids);
+
+            return BuildResults(_lastKeywordScan);
+        }
+    }
+}

@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Diagnostics;
 
 namespace QTHmon
 {
+    [DebuggerDisplay("Id = {Id}, Title = {Title}")]
     public class Post
     {
         public int Id { get; set; }
