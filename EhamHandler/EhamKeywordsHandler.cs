@@ -53,7 +53,7 @@ namespace QTHmon
 
             _newPosts.ForEach(x => _thisScan.Ids.Add(x.Id));
 
-#if SAVEHIST
+#if !DEBUG || SAVEHIST
             if (_newPosts.Count > 0)
                 File.WriteAllText(_settings.EhamNet.KeywordSearch.ResultFile, JsonConvert.SerializeObject(_thisScan));
 #endif

@@ -20,7 +20,7 @@ namespace QTHmon
     public class Cache
     { 
         /// <summary>
-        /// Will be combined with ResourceUrl
+        /// Will be combined with ResourceUrl in the email and with ResourceFolder for storage
         /// </summary>
         /// <value>Where to cache images</value>
         public string ImageFolder { get; set; }
@@ -60,6 +60,10 @@ namespace QTHmon
         /// Whether or not to attach email body also as an html file
         /// </summary>
         public bool AttachFile { get; set; }
+        /// <summary>
+        /// Where to put assets (ex: shared web folder)
+        /// </summary>
+        public string ResourceFolder { get; set; }
         /// <summary>
         /// Url to access cached assets via http
         /// </summary>

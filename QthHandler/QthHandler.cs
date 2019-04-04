@@ -93,7 +93,7 @@ namespace QTHmon
                 if (lastScan.OtherIds.Any(x => x == post.Id)) continue; //ignore if listed in other searches before
 
                 if (!string.IsNullOrEmpty(_settings.ResourceUrl))
-                    await Utils.GetImage(httpClient, post, "https://swap.qth.com/segamida/thumb_{0}.jpg", _settings.QthCom.Cache);
+                    await Utils.GetImage(httpClient, _settings, post, "https://swap.qth.com/segamida/thumb_{0}.jpg", _settings.QthCom.Cache);
 
                 lastScan.OtherIds.Add(post.Id);
                 _newPosts.Add(post);

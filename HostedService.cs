@@ -36,6 +36,8 @@ namespace QTHmon
             _qthHandler = qthHandler;
             _ehamHandler = ehamHandler;
             //_cookies = new CookieContainer();
+
+            if (string.IsNullOrEmpty(_settings.ResourceFolder)) _settings.ResourceFolder = ".";
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
@@ -107,7 +109,8 @@ namespace QTHmon
     * {box-sizing: border-box}
     html, body {margin:0; padding:0}
 
-    .ext-link a {width: 100%; text-align: center; height: 2rem; color: #aaa;}
+    .ext-link {text-align: right; width: 100%;}
+    .ext-link a {color: #aaa;}
     .source {width: 100%; font-size: 2rem; font-weight: bold; text-align: center; color: cadetblue; }
     table {border: 1px solid #aaa; margin-bottom: 5px; width: 100%}
     tr, td {border: none; padding: 0; margin: 0}
@@ -129,7 +132,7 @@ namespace QTHmon
 ");
 
             if (!string.IsNullOrEmpty(_settings.BodyFileName) && !string.IsNullOrEmpty(_settings.ResourceUrl))
-                sb.AppendLine($"<div class='ext-link'><a href='{_settings.ResourceUrl}/{_settings.BodyFileName}' target='_blank'>View this email in a separate browser window</a><div>");
+                sb.AppendLine($"<div class='ext-link'><a href='{_settings.ResourceUrl}/{_settings.BodyFileName}' target='_blank'>View this email in a separate browser window</a></div>");
 
             // ReSharper disable once PossibleMultipleEnumeration
             foreach(var res in results)
@@ -145,11 +148,12 @@ namespace QTHmon
 
             if (!string.IsNullOrEmpty(_settings.BodyFileName))
             {
-                var name = string.IsNullOrEmpty(_settings.ResourceUrl) ? _settings.BodyFileName : $"{_settings.ResourceUrl}/{_settings.BodyFileName}";
-                File.WriteAllText(name, msg.Body);
+                _logger.LogDebug("Saving file");
+                File.WriteAllText($"{_settings.ResourceFolder}/{_settings.BodyFileName}", msg.Body);
             }
 
-#if DEBUG
+#if !DEBUG
+            _logger.LogDebug("Sending email");
             var client = new SmtpClient(_settings.SmtpServer);
 
             if (!string.IsNullOrWhiteSpace(_settings.User))
@@ -158,7 +162,6 @@ namespace QTHmon
             if (_settings.AttachFile && !string.IsNullOrEmpty(_settings.BodyFileName))
                 msg.Attachments.Add(new Attachment(_settings.BodyFileName));
 
-            _logger.LogDebug("Sending email");
             client.Send(msg);
 #endif
         }

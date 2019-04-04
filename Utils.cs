@@ -78,11 +78,11 @@ namespace QTHmon
             return value.Length > 0 ? value : null;
         }
 
-        internal static async Task GetImage(HttpClient httpClient, Post post, string format, Cache cache)
+        internal static async Task GetImage(HttpClient httpClient, AppSettings settings, Post post, string format, Cache cache)
         {
             if (!post.HasImage || string.IsNullOrEmpty(cache?.ImageFolder)) return;
 
-            var fName = $"{cache.ImageFolder}/{post.Id}.jpg";
+            var fName = $"{settings.ResourceFolder}/{cache.ImageFolder}/{post.Id}.jpg";
             if (File.Exists(fName)) return;
 
             var uri = new Uri(string.Format(format, post.Id));

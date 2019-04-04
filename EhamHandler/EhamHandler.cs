@@ -143,7 +143,7 @@ namespace QTHmon
                 if (lastScan.OtherIds != null && lastScan.OtherIds.IndexOf(post.Id) >= 0) continue; //ignore if listed in other searches before
 
                 if (!string.IsNullOrEmpty(_settings.ResourceUrl))
-                    await Utils.GetImage(httpClient, post, "https://www.eham.net/data/classifieds/images/{0}.t.jpg", _settings.EhamNet.Cache);
+                    await Utils.GetImage(httpClient, _settings, post, "https://www.eham.net/data/classifieds/images/{0}.t.jpg", _settings.EhamNet.Cache);
 
                 _newPosts.Add(post);
 
