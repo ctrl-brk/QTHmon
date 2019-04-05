@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -8,10 +9,12 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+// ReSharper disable once CheckNamespace
 namespace QTHmon
 {
     public partial class EhamHandler : IEhamHandler
     {
+        [SuppressMessage("ReSharper", "StringLiteralTypo")]
         private readonly Dictionary<string, int> _categories = new Dictionary<string, int>
         {
             {"amplifier parts", 67},
@@ -85,9 +88,9 @@ namespace QTHmon
 
             //var responseCookies = cookies.GetCookies(uri).Cast<Cookie>();
             //var sessionCookie = responseCookies.FirstOrDefault(x => x.Name == "ehamsid");
-            var header = res.Headers.FirstOrDefault(x => x.Key == "Set-Cookie");
-            if (header.Key == null) throw new ApplicationException("Invalid response format");
-            var val = header.Value.First().Split(';')[0].Split('=');
+            var (key, value) = res.Headers.FirstOrDefault(x => x.Key == "Set-Cookie");
+            if (key == null) throw new ApplicationException("Invalid response format");
+            var val = value.First().Split(';')[0].Split('=');
             _sessionCookie = new Cookie(val[0], val[1]);
 
             return _sessionCookie;

@@ -50,7 +50,7 @@ namespace QTHmon
                 _logger.LogDebug($"Fetching {category} page {postNum/PAGE_SIZE + 1} of maximum {_settings.QthCom.CategorySearch.MaxPosts/PAGE_SIZE} from qth.com");
                 var message = new HttpRequestMessage(HttpMethod.Get, uri);
                 message.Headers.Add("Cache-Control", "no-cache");
-                var res = await httpClient.SendAsync(message);
+                var res = await httpClient.SendAsync(message, token);
                 if (token.IsCancellationRequested) break;
                 var msg = await res.Content.ReadAsStringAsync();
                 postNum += PAGE_SIZE;

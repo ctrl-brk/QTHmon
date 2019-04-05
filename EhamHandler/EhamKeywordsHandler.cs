@@ -41,7 +41,7 @@ namespace QTHmon
                 var message = new HttpRequestMessage(HttpMethod.Get, uri);
                 message.Headers.Add("Cache-Control", "no-cache");
                 message.Headers.Add("Cookie", $"{sessionCookie.Name}={sessionCookie.Value}");
-                var res = await httpClient.SendAsync(message);
+                var res = await httpClient.SendAsync(message, token);
 
                 //var res = await httpClient.GetAsync(uri, token);
                 if (token.IsCancellationRequested) break;
