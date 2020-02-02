@@ -26,7 +26,8 @@ namespace QTHmon
                     .Configure<HostOptions>(opt => opt.ShutdownTimeout = TimeSpan.FromSeconds(10))
                     .Configure<AppSettings>(ctx.Configuration.GetSection("AppSettings"))
                     .AddSingleton<IHostedService, HostedService>()
-                    .AddSingleton<IQthSwapHandler, QthSwapHandler>();
+                    .AddSingleton<IQthHandler, QthHandler>()
+                    .AddSingleton<IEhamHandler, EhamHandler>();
                 })
                 .ConfigureLogging((ctx, cfg) =>
                 {
