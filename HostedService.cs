@@ -16,7 +16,7 @@ namespace QTHmon
     public class HostedService : IHostedService
     {
         private readonly ILogger _logger;
-        private readonly IApplicationLifetime _appLifeTime;
+        private readonly IHostApplicationLifetime _appLifeTime;
         private readonly AppSettings _settings;
         private readonly IQthHandler _qthHandler;
         private readonly IEhamHandler _ehamHandler;
@@ -28,14 +28,14 @@ namespace QTHmon
         private Task _task;
         private CancellationTokenSource _cts;
 
-        public HostedService(ILogger<HostedService> logger, IApplicationLifetime appLifeTime, IOptions<AppSettings> settings, IQthHandler qthHandler, IEhamHandler ehamHandler)
+        public HostedService(ILogger<HostedService> logger, IHostApplicationLifetime appLifeTime, IOptions<AppSettings> settings, IQthHandler qthHandler, IEhamHandler ehamHandler)
         {
             _logger = logger;
             _appLifeTime = appLifeTime;
             _settings = settings.Value;
             _qthHandler = qthHandler;
             _ehamHandler = ehamHandler;
-            //_cookies = new CookieContainer();
+            _cookies = new CookieContainer();
 
             if (string.IsNullOrEmpty(_settings.ResourceFolder)) _settings.ResourceFolder = ".";
         }
@@ -146,11 +146,10 @@ namespace QTHmon
 
             msg.Body = sb.ToString();
 
-            if (!string.IsNullOrEmpty(_settings.BodyFileName))
-            {
-                _logger.LogDebug("Saving file");
-                File.WriteAllText($"{_settings.ResourceFolder}/{_settings.BodyFileName}", msg.Body);
-            }
+            if (string.IsNullOrEmpty(_settings.BodyFileName)) return;
+
+            _logger.LogDebug("Saving file");
+            File.WriteAllText($"{_settings.ResourceFolder}/{_settings.BodyFileName}", msg.Body);
 
 #if !DEBUG
             _logger.LogDebug("Sending email");
