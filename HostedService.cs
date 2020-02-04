@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Http;
 using System.Net.Mail;
 using System.Text;
 using System.Threading;
@@ -15,24 +16,36 @@ namespace QTHmon
     public class HostedService : IHostedService
     {
         private readonly ILogger _logger;
-        private readonly IApplicationLifetime _appLifeTime;
+        private readonly IHostApplicationLifetime _appLifeTime;
         private readonly AppSettings _settings;
-        private readonly IQthSwapHandler _qthSwapHandler;
+        private readonly IQthHandler _qthHandler;
+        private readonly IEhamHandler _ehamHandler;
+        private readonly CookieContainer _cookies;
+
+        private HttpClientHandler _httpClientHandler;
+        private HttpClient _httpClient;
 
         private Task _task;
         private CancellationTokenSource _cts;
 
-        public HostedService(ILogger<HostedService> logger, IApplicationLifetime appLifeTime, IOptions<AppSettings> settings, IQthSwapHandler qthSwapHandler)
+        public HostedService(ILogger<HostedService> logger, IHostApplicationLifetime appLifeTime, IOptions<AppSettings> settings, IQthHandler qthHandler, IEhamHandler ehamHandler)
         {
             _logger = logger;
             _appLifeTime = appLifeTime;
             _settings = settings.Value;
-            _qthSwapHandler = qthSwapHandler;
+            _qthHandler = qthHandler;
+            _ehamHandler = ehamHandler;
+            _cookies = new CookieContainer();
+
+            if (string.IsNullOrEmpty(_settings.ResourceFolder)) _settings.ResourceFolder = ".";
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
             _logger.LogInformation("Starting");
+
+            _httpClientHandler = new HttpClientHandler {UseCookies = false, CookieContainer = _cookies};
+            _httpClient = new HttpClient(_httpClientHandler);
 
             // Create a linked token so we can trigger cancellation outside of this token's cancellation
             _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -46,7 +59,8 @@ namespace QTHmon
         public Task StopAsync(CancellationToken cancellationToken)
         {
             _logger.LogInformation("Stopping");
-            _qthSwapHandler.Dispose();
+            _httpClient.Dispose();
+            _httpClientHandler.Dispose();
             return Task.CompletedTask;
         }
 
@@ -54,10 +68,21 @@ namespace QTHmon
         {
             var results = new List<ScanResult>();
 
-            var keyRes = await _qthSwapHandler.ProcessKeywordsAsync(token);
-            if (keyRes != null) results.Add(keyRes);
+            var keyRes = await _qthHandler.ProcessKeywordsAsync(_httpClient, null, token);
+            if (keyRes != null)
+                results.Add(keyRes);
 
-            results.AddRange((await _qthSwapHandler.ProcessCategoriesAsync(token)).Where(catRes => catRes != null));
+            var catRes = await _qthHandler.ProcessCategoriesAsync(_httpClient, null, token);
+            if (catRes != null)
+                results.AddRange(catRes.Where(x => x != null));
+
+            keyRes = await _ehamHandler.ProcessKeywordsAsync(_httpClient, _cookies, token);
+            if (keyRes != null)
+                results.Add(keyRes);
+
+            catRes = await _ehamHandler.ProcessCategoriesAsync(_httpClient, _cookies, token);
+            if (catRes != null)
+                results.AddRange(catRes.Where(x => x != null));
 
             SendResults(results);
             _appLifeTime.StopApplication();
@@ -84,11 +109,14 @@ namespace QTHmon
     * {box-sizing: border-box}
     html, body {margin:0; padding:0}
 
+    .ext-link {text-align: right; width: 100%;}
+    .ext-link a {color: #aaa;}
     .source {width: 100%; font-size: 2rem; font-weight: bold; text-align: center; color: cadetblue; }
     table {border: 1px solid #aaa; margin-bottom: 5px; width: 100%}
     tr, td {border: none; padding: 0; margin: 0}
     td.thumb {vertical-align: top; max-width: 300px}
-    td.thumb img {width: 300px}
+    td.thumb img.qth {width: 300px}
+    td.thumb img.eham {height: 100px}
     td.title {height: 1.5rem; padding: 2px 5px; font: 1.2rem bold; font-family: helvetica; color: azure; background-color: cornflowerblue; width: 100%}
     td.title a.link {color: azure; text-decoration: none}
     td.title a.cat {float: right; font-size: 1rem; font-style: italic; color: oldlace}
@@ -103,6 +131,9 @@ namespace QTHmon
 <body>
 ");
 
+            if (!string.IsNullOrEmpty(_settings.BodyFileName) && !string.IsNullOrEmpty(_settings.ResourceUrl))
+                sb.AppendLine($"<div class='ext-link'><a href='{_settings.ResourceUrl}/{_settings.BodyFileName}' target='_blank'>View this email in a separate browser window</a></div>");
+
             // ReSharper disable once PossibleMultipleEnumeration
             foreach(var res in results)
             {
@@ -115,16 +146,23 @@ namespace QTHmon
 
             msg.Body = sb.ToString();
 
-            //File.WriteAllText("msg.html", msg.Body);
-            //return;
+            if (string.IsNullOrEmpty(_settings.BodyFileName)) return;
 
+            _logger.LogDebug("Saving file");
+            File.WriteAllText($"{_settings.ResourceFolder}/{_settings.BodyFileName}", msg.Body);
+
+#if !DEBUG
+            _logger.LogDebug("Sending email");
             var client = new SmtpClient(_settings.SmtpServer);
 
             if (!string.IsNullOrWhiteSpace(_settings.User))
                 client.Credentials = new NetworkCredential(_settings.User, _settings.Password);
 
-            _logger.LogDebug("Sending email");
+            if (_settings.AttachFile && !string.IsNullOrEmpty(_settings.BodyFileName))
+                msg.Attachments.Add(new Attachment(_settings.BodyFileName));
+
             client.Send(msg);
+#endif
         }
     }
 }
