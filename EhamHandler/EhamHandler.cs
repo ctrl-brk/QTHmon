@@ -99,7 +99,7 @@ namespace QTHmon
         private async Task<bool> ScanResults(string msg, ScanType scanType, HttpClient httpClient)
         {
             // ReSharper disable InconsistentNaming
-            const string AD_START = "<table width=\"100%\" border=\"0\" cellspacing=\"1\" cellpadding=\"4\">";
+            const string AD_START = "<tr data-key=\"";
             // ReSharper restore InconsistentNaming
 
             var lastScan = scanType == ScanType.Keyword ? _lastKeywordScan : _lastCategoryScan;
@@ -123,18 +123,18 @@ namespace QTHmon
                 if (scanType == ScanType.Category && cnt > _settings.EhamNet.CategorySearch.MaxPosts) break;
 
                 adStartIndex += AD_START.Length;
+                adStartIndex += msg.IndexOf("\"", adStartIndex, StringComparison.Ordinal) - adStartIndex + 2;
 
-                var adEndIndex = msg.IndexOf("</table>", adStartIndex, StringComparison.Ordinal);
+                var adEndIndex = msg.IndexOf(AD_START, adStartIndex, StringComparison.Ordinal);
+                if (adEndIndex < 0) adEndIndex = msg.IndexOf("<ul class=\"pagination\">", adStartIndex, StringComparison.Ordinal);
+                
                 if (adEndIndex < 0) throw new ApplicationException("Invalid response format");
 
                 var body = msg.Substring(adStartIndex, adEndIndex - adStartIndex);
+                
                 if (scanType == ScanType.Keyword)
                 {
-                    var found = false;
-                    foreach (var key in keys)
-                    {
-                        if (body.Contains(key, StringComparison.OrdinalIgnoreCase)) { found = true; break; }
-                    }
+                    var found = keys.Any(key => body.Contains(key, StringComparison.OrdinalIgnoreCase));
                     if (!found) continue;
                 }
 
@@ -161,16 +161,17 @@ namespace QTHmon
         private static Post ProcessPost(string html, ScanType scanType)
         {
             var index = 0;
+
             var post = new Post
             {
                 IsNew = true,
-                SubmittedOn = DateTime.Parse(Utils.GetValue(html, "<p>", scanType == ScanType.Keyword ? " " : "<" , ref index)),
-                CallSign = Utils.GetValue(html, "profile/", "\"", ref index),
-                HasImage = html.IndexOf("era.g", index, StringComparison.Ordinal) > 0,
-                Category = scanType == ScanType.Keyword ? Utils.GetValue(html, "<th align=\"left\" width=\"15%\">\n\t\t\t\t    <p>", "</p>", ref index) : null,
-                Id = int.Parse(Utils.GetValue(html, $"href=\"{(scanType == ScanType.Keyword ? "" : "/classifieds/")}detail/", "\"", ref index)),
-                Title = Utils.GetValue(html, ">", "</A>", ref index),
-                Description = Utils.HighlightPrices(Utils.GetValue(html, "<p>", "</p>", ref index)),
+                Id = int.Parse(Utils.GetValue(html, $"href=\"/classifieds/", "\"", ref index)),
+                Title = Utils.GetValue(html, ">", "</a>", ref index),
+                SubmittedOn = DateTime.Parse(Utils.GetValue(html, "User IP</th>\n\t\t</tr><tr><td>", scanType == ScanType.Keyword ? "</td>" : "<" , ref index)),
+                //CallSign = Utils.GetValue(html, "profile/", "\"", ref index),
+                Category = Utils.GetValue(html, "\">", "</a>", ref index),
+                HasImage = html.IndexOf("<img alt style", index, StringComparison.Ordinal) < 0 && html.IndexOf(";base64,TUNRS1", index, StringComparison.Ordinal) < 0,
+                Description = Utils.HighlightPrices(Utils.GetValue(html, "float:right\">", "</div>", ref index)),
             };
 
             post.Price = Utils.GetPrice(post);

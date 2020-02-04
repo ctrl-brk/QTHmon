@@ -44,7 +44,7 @@ namespace QTHmon
         {
             _logger.LogDebug($"Fetching {category} category from eHam.net");
 
-            var uri = new Uri($"https://www.eham.net/classifieds/results/{_categories.First(x => x.Key == category.ToLower()).Value}");
+            var uri = new Uri($"https://www.eham.net/classifieds/view-category?id={_categories.First(x => x.Key == category.ToLower()).Value}");
 
             var sessionCookie = await GetSessionCookie(httpClient, cookies);
 
