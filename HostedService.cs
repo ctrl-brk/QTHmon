@@ -115,8 +115,9 @@ namespace QTHmon
     table {border: 1px solid #aaa; margin-bottom: 5px; width: 100%}
     tr, td {border: none; padding: 0; margin: 0}
     td.thumb {vertical-align: top; max-width: 300px}
-    td.thumb img.qth {width: 300px}
-    td.thumb img.eham {height: 100px}
+    td.thumb img {width: 300px}
+    td.thumb img.qth {max-width: 300px}
+    td.thumb img.eham {max-width: 300px}
     td.title {height: 1.5rem; padding: 2px 5px; font: 1.2rem bold; font-family: helvetica; color: azure; background-color: cornflowerblue; width: 100%}
     td.title a.link {color: azure; text-decoration: none}
     td.title a.cat {float: right; font-size: 1rem; font-style: italic; color: oldlace}
