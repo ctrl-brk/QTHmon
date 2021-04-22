@@ -87,6 +87,8 @@ namespace QTHmon
 
                 var post = ProcessPost(msg.Substring(adStartIndex, adEndIndex - adStartIndex), scanType);
 
+                if (post == null) continue; //WTB
+
                 if (post.ActivityDate < lastScan.Date) return false;
                 if (post.ActivityDate == lastScan.Date && lastScan.Ids.Any(x => x == post.Id)) return false;
 
@@ -123,6 +125,8 @@ namespace QTHmon
                 SubmittedOn = DateTime.Parse(Utils.GetValue(html, "Submitted on ", " by ", ref index)),
                 CallSign = GetCallSign(html, ref index)
             };
+
+            if (post.Title.StartsWith("WTB ", true, null) || post.Title.StartsWith("WTB:", true, null) || post.Title.StartsWith("WTB-", true, null)) return null;
 
             DateTime.TryParse(Utils.GetValue(html, "Modified on ", " - IP:", ref index, false), out var dt);
             post.ModifiedOn = dt == DateTime.MinValue ? (DateTime?)null : dt;

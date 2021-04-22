@@ -140,6 +140,8 @@ namespace QTHmon
 
                 var post = ProcessPost(body, scanType);
 
+                if (post == null) continue; //WTB
+
                 if (post.ActivityDate < lastScan.Date) return false;
                 if (post.ActivityDate == lastScan.Date && lastScan.Ids.IndexOf(post.Id) >= 0) return false;
 
@@ -173,6 +175,8 @@ namespace QTHmon
                 HasImage = html.IndexOf("<img alt style", index, StringComparison.Ordinal) < 0 && html.IndexOf(";base64,TUNRS1", index, StringComparison.Ordinal) < 0,
                 Description = Utils.HighlightPrices(Utils.GetValue(html, "float:right\">", "</div>", ref index)),
             };
+
+            if (post.Title.StartsWith("WTB ", true, null) || post.Title.StartsWith("WTB:", true, null) || post.Title.StartsWith("WTB-", true, null)) return null;
 
             post.Price = Utils.GetPrice(post);
             if (!string.IsNullOrEmpty(post.Category)) post.Category = post.Category.ToLower();
