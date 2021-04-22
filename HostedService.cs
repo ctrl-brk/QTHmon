@@ -153,7 +153,7 @@ namespace QTHmon
             File.WriteAllText($"{_settings.ResourceFolder}/{_settings.BodyFileName}", msg.Body);
 
 #if !DEBUG
-            _logger.LogDebug("Sending email");
+            _logger.LogDebug($"Sending email to {_settings.EmailTo}");
             var client = new SmtpClient(_settings.SmtpServer);
 
             if (!string.IsNullOrWhiteSpace(_settings.User))

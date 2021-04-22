@@ -9,7 +9,7 @@ namespace QTHmon
 {
     internal static class Program
     {
-        private static async Task Main()
+        private static async Task<int> Main()
         {
             var host = new HostBuilder()
                 .ConfigureAppConfiguration((ctx, cfg) =>
@@ -40,6 +40,7 @@ namespace QTHmon
                 .Build();
 
             await host.RunAsync();
+            return 0;
         }
     }
 }
