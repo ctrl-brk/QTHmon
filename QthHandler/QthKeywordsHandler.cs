@@ -55,6 +55,7 @@ namespace QTHmon
                 var msg = await res.Content.ReadAsStringAsync();
                 startIndex += 10;
                 postNum += PAGE_SIZE;
+
                 if (!await ScanResults(msg, ScanType.Keyword, httpClient)) break;
             }
 
