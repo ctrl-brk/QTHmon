@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
@@ -162,7 +163,14 @@ namespace QTHmon
             if (_settings.AttachFile && !string.IsNullOrEmpty(_settings.BodyFileName))
                 msg.Attachments.Add(new Attachment(_settings.BodyFileName));
 
-            client.Send(msg);
+            try
+            {
+                client.Send(msg);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e.ToString());
+            }
 #endif
         }
     }
