@@ -1,73 +1,66 @@
-﻿using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Net;
-using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
+﻿// ReSharper disable once CheckNamespace
+namespace QTHmon;
 
-// ReSharper disable once CheckNamespace
-namespace QTHmon
+public partial class QthHandler
 {
-    public partial class QthHandler
+    public async Task<ScanResult> ProcessKeywordsAsync(HttpClient httpClient, CookieContainer cookies, CancellationToken token)
     {
-        public async Task<ScanResult> ProcessKeywordsAsync(HttpClient httpClient, CookieContainer cookies, CancellationToken token)
-        {
-            if (_settings.QthCom.KeywordSearch.MaxPosts <= 0) return null;
+        if (_settings.QthCom.KeywordSearch.MaxPosts <= 0) return null;
 
-            _thisScan = new ScanInfo { Ids = new List<int>(), OtherIds = new List<int>() };
-            _newPosts = new List<Post>();
+        _thisScan = new ScanInfo { Ids = new List<int>(), OtherIds = new List<int>() };
+        _newPosts = new List<Post>();
 #if DEBUG && CLEARHIST
             File.Delete(_settings.QthCom.KeywordSearch.ResultFile);
 #endif
-            int startIndex = 0, postNum = 0;
-            var uri = new Uri("https://swap.qth.com/advsearchresults.php");
+        int startIndex = 0, postNum = 0;
+        var uri = new Uri("https://swap.qth.com/advsearchresults.php");
 
-            if (File.Exists(_settings.QthCom.KeywordSearch.ResultFile))
+        if (File.Exists(_settings.QthCom.KeywordSearch.ResultFile))
+        {
+            _lastKeywordScan = JsonConvert.DeserializeObject<ScanInfo>(await File.ReadAllTextAsync(_settings.QthCom.KeywordSearch.ResultFile, token));
+            _lastKeywordScan.OtherIds = new List<int>();
+        }
+
+        while (postNum < _settings.QthCom.KeywordSearch.MaxPosts)
+        {
+            var formData = new List<KeyValuePair<string, string>>
             {
-                _lastKeywordScan = JsonConvert.DeserializeObject<ScanInfo>(File.ReadAllText(_settings.QthCom.KeywordSearch.ResultFile));
-                _lastKeywordScan.OtherIds = new List<int>();
+                new("anywords", string.Join(' ', _settings.QthCom.KeywordSearch.Keywords.Split(',')))
+            };
+
+            if (startIndex > 0)
+            {
+                formData.AddRange(new[]
+                {
+                    new KeyValuePair<string, string>("startnum", startIndex.ToString()),
+                    new KeyValuePair<string, string>("submit", "Next 10 Ads")
+                });
             }
 
-            while (postNum < _settings.QthCom.KeywordSearch.MaxPosts)
-            {
-                var formData = new List<KeyValuePair<string, string>>
-                {
-                    new KeyValuePair<string, string>("anywords", string.Join(' ', _settings.QthCom.KeywordSearch.Keywords.Split(',')))
-                };
+            var content = new FormUrlEncodedContent(formData);
 
-                if (startIndex > 0)
-                {
-                    formData.AddRange(new[]
-                     {
-                         new KeyValuePair<string, string>("startnum", startIndex.ToString()),
-                         new KeyValuePair<string, string>("submit", "Next 10 Ads")
-                     });
-                }
+            _logger.LogDebug("""Fetching \"{KeywordSearchKeywords}\" keywords. Page {PageSize} of maximum {KeywordSearchMaxPosts} from qth.com""", _settings.QthCom.KeywordSearch.Keywords, postNum/PAGE_SIZE + 1, _settings.QthCom.KeywordSearch.MaxPosts/PAGE_SIZE);
+            var res = await httpClient.PostAsync(uri, content, token);
+            if (token.IsCancellationRequested) break;
+            var msg = await res.Content.ReadAsStringAsync(token);
+            startIndex += 10;
+            postNum += PAGE_SIZE;
 
-                var content = new FormUrlEncodedContent(formData);
+            if (await ScanResults(msg, ScanType.Keyword, httpClient))
+                continue;
+            
+            _logger.LogDebug("No results found");
+            break;
+        }
 
-                _logger.LogDebug($"Fetching \"{_settings.QthCom.KeywordSearch.Keywords}\" page {postNum/PAGE_SIZE + 1} of maximum {_settings.QthCom.KeywordSearch.MaxPosts/PAGE_SIZE} from qth.com");
-                var res = await httpClient.PostAsync(uri, content, token);
-                if (token.IsCancellationRequested) break;
-                var msg = await res.Content.ReadAsStringAsync();
-                startIndex += 10;
-                postNum += PAGE_SIZE;
-
-                if (!await ScanResults(msg, ScanType.Keyword, httpClient)) break;
-            }
-
-            _newPosts.ForEach(x => _thisScan.Ids.Add(x.Id));
+        _newPosts.ForEach(x => _thisScan.Ids.Add(x.Id));
 
 #if !DEBUG || SAVEHIST
             if (_newPosts.Count > 0)
-                File.WriteAllText(_settings.QthCom.KeywordSearch.ResultFile, JsonConvert.SerializeObject(_thisScan));
+                await File.WriteAllTextAsync(_settings.QthCom.KeywordSearch.ResultFile, JsonConvert.SerializeObject(_thisScan), token);
 #endif
-            _lastKeywordScan.Ids = new List<int>(_thisScan.Ids);
+        _lastKeywordScan.Ids = new List<int>(_thisScan.Ids);
 
-            return BuildResults(_lastKeywordScan);
-        }
+        return BuildResults(_lastKeywordScan);
     }
 }

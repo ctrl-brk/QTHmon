@@ -1,19 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
+﻿namespace QTHmon;
 
-namespace QTHmon
+public enum ScanType
 {
-    public enum ScanType
-    {
-        Keyword,
-        Category
-    }
+    Keyword,
+    Category
+}
 
-    public class ScanInfo
-    {
-        public DateTime Date { get; set; }
-        public List<int> Ids { get; set; }
-        [NonSerialized]
-        public List<int> OtherIds;
-    }
+public class ScanInfo
+{
+    public DateTime Date { get; set; }
+    public List<int> Ids { get; set; }
+    [NonSerialized]
+    public List<int> OtherIds;
 }

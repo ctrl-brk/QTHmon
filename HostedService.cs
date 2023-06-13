@@ -1,107 +1,90 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Net.Http;
-using System.Net.Mail;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
+﻿using System.Net.Mail;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using SendGrid;
+using SendGrid.Helpers.Mail;
+using Attachment = System.Net.Mail.Attachment;
 
-namespace QTHmon
+namespace QTHmon;
+
+public class HostedService : IHostedService
 {
-    public class HostedService : IHostedService
+    private readonly ILogger _logger;
+    private readonly IHostApplicationLifetime _appLifeTime;
+    private readonly AppSettings _settings;
+    private readonly IQthHandler _qthHandler;
+    private readonly IEhamHandler _ehamHandler;
+    private readonly CookieContainer _cookies;
+
+    private HttpClientHandler _httpClientHandler;
+    private HttpClient _httpClient;
+
+    private Task _task;
+    private CancellationTokenSource _cts;
+
+    public HostedService(ILogger<HostedService> logger, IHostApplicationLifetime appLifeTime, IOptions<AppSettings> settings, IQthHandler qthHandler, IEhamHandler ehamHandler)
     {
-        private readonly ILogger _logger;
-        private readonly IHostApplicationLifetime _appLifeTime;
-        private readonly AppSettings _settings;
-        private readonly IQthHandler _qthHandler;
-        private readonly IEhamHandler _ehamHandler;
-        private readonly CookieContainer _cookies;
+        _logger = logger;
+        _appLifeTime = appLifeTime;
+        _settings = settings.Value;
+        _qthHandler = qthHandler;
+        _ehamHandler = ehamHandler;
+        _cookies = new CookieContainer();
 
-        private HttpClientHandler _httpClientHandler;
-        private HttpClient _httpClient;
+        if (string.IsNullOrEmpty(_settings.ResourceFolder)) _settings.ResourceFolder = ".";
+    }
 
-        private Task _task;
-        private CancellationTokenSource _cts;
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Starting");
 
-        public HostedService(ILogger<HostedService> logger, IHostApplicationLifetime appLifeTime, IOptions<AppSettings> settings, IQthHandler qthHandler, IEhamHandler ehamHandler)
-        {
-            _logger = logger;
-            _appLifeTime = appLifeTime;
-            _settings = settings.Value;
-            _qthHandler = qthHandler;
-            _ehamHandler = ehamHandler;
-            _cookies = new CookieContainer();
+        _httpClientHandler = new HttpClientHandler {UseCookies = false, CookieContainer = _cookies};
+        _httpClient = new HttpClient(_httpClientHandler);
 
-            if (string.IsNullOrEmpty(_settings.ResourceFolder)) _settings.ResourceFolder = ".";
-        }
+        // Create a linked token so we can trigger cancellation outside of this token's cancellation
+        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        public Task StartAsync(CancellationToken cancellationToken)
-        {
-            _logger.LogInformation("Starting");
+        _task = MonitorAsync(_cts.Token);
 
-            _httpClientHandler = new HttpClientHandler {UseCookies = false, CookieContainer = _cookies};
-            _httpClient = new HttpClient(_httpClientHandler);
+        // If the task is completed then return it, otherwise it's running
+        return _task.IsCompleted ? _task : Task.CompletedTask;
+    }
 
-            // Create a linked token so we can trigger cancellation outside of this token's cancellation
-            _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Stopping");
+        _httpClient.Dispose();
+        _httpClientHandler.Dispose();
+        return Task.CompletedTask;
+    }
 
-            _task = MonitorAsync(_cts.Token);
+    private async Task MonitorAsync(CancellationToken token)
+    {
+        var results = new List<ScanResult>();
 
-            // If the task is completed then return it, otherwise it's running
-            return _task.IsCompleted ? _task : Task.CompletedTask;
-        }
+        var keyRes = await _qthHandler.ProcessKeywordsAsync(_httpClient, null, token);
+        if (keyRes != null)
+            results.Add(keyRes);
 
-        public Task StopAsync(CancellationToken cancellationToken)
-        {
-            _logger.LogInformation("Stopping");
-            _httpClient.Dispose();
-            _httpClientHandler.Dispose();
-            return Task.CompletedTask;
-        }
+        var catRes = await _qthHandler.ProcessCategoriesAsync(_httpClient, null, token);
+        if (catRes != null)
+            results.AddRange(catRes.Where(x => x != null));
 
-        private async Task MonitorAsync(CancellationToken token)
-        {
-            var results = new List<ScanResult>();
+        keyRes = await _ehamHandler.ProcessKeywordsAsync(_httpClient, _cookies, token);
+        if (keyRes != null)
+            results.Add(keyRes);
 
-            var keyRes = await _qthHandler.ProcessKeywordsAsync(_httpClient, null, token);
-            if (keyRes != null)
-                results.Add(keyRes);
+        catRes = await _ehamHandler.ProcessCategoriesAsync(_httpClient, _cookies, token);
+        if (catRes != null)
+            results.AddRange(catRes.Where(x => x != null));
 
-            var catRes = await _qthHandler.ProcessCategoriesAsync(_httpClient, null, token);
-            if (catRes != null)
-                results.AddRange(catRes.Where(x => x != null));
+        await SendResults(results);
+        _appLifeTime.StopApplication();
+    }
 
-            keyRes = await _ehamHandler.ProcessKeywordsAsync(_httpClient, _cookies, token);
-            if (keyRes != null)
-                results.Add(keyRes);
-
-            catRes = await _ehamHandler.ProcessCategoriesAsync(_httpClient, _cookies, token);
-            if (catRes != null)
-                results.AddRange(catRes.Where(x => x != null));
-
-            SendResults(results);
-            _appLifeTime.StopApplication();
-        }
-
-        private void SendResults(IEnumerable<ScanResult> results)
-        {
-            var msg = new MailMessage(_settings.EmailFrom, _settings.EmailTo)
-            {
-                // ReSharper disable PossibleMultipleEnumeration
-                Subject = results.Any() ? string.Format(_settings.EmailSubjectResultsFormat, results.Sum(x => x.Items), results.Min(x => x.LastScan)) : _settings.EmailSubjectEmptyFormat,
-                // ReSharper restore PossibleMultipleEnumeration
-                SubjectEncoding = Encoding.UTF8,
-                BodyEncoding = Encoding.UTF8,
-                IsBodyHtml = true
-            };
-
-            var sb = new StringBuilder(@"<!DOCTYPE html>
+    private async Task SendResults(IEnumerable<ScanResult> results)
+    {
+        var sb = new StringBuilder(@"<!DOCTYPE html>
 <html lang='en'>
 <head>
 <meta charset='UTF-8'>
@@ -133,35 +116,47 @@ namespace QTHmon
 <body>
 ");
 
-            if (!string.IsNullOrEmpty(_settings.BodyFileName) && !string.IsNullOrEmpty(_settings.ResourceUrl))
-                sb.AppendLine($"<div class='ext-link'><a href='{_settings.ResourceUrl}/{_settings.BodyFileName}' target='_blank'>View this email in a separate browser window</a></div>");
+        if (!string.IsNullOrEmpty(_settings.Email.BodyFileName) && !string.IsNullOrEmpty(_settings.ResourceUrl))
+            sb.AppendLine($"<div class='ext-link'><a href='{_settings.ResourceUrl}/{_settings.Email.BodyFileName}' target='_blank'>View this email in a separate browser window</a></div>");
 
-            // ReSharper disable once PossibleMultipleEnumeration
-            foreach(var res in results)
+        // ReSharper disable once PossibleMultipleEnumeration
+        foreach(var res in results)
+        {
+            sb.AppendLine($"<div class='source'>{res.Title}</div>\n<div>");
+            sb.AppendLine(res.Html);
+            sb.AppendLine("</div>");
+        }
+
+        sb.AppendLine("</body>\n</html>");
+
+        if (string.IsNullOrEmpty(_settings.Email.BodyFileName))
+            return;
+
+        _logger.LogDebug("Saving file");
+        await File.WriteAllTextAsync($"{_settings.ResourceFolder}/{_settings.Email.BodyFileName}", sb.ToString());
+
+        if (_settings.Email.Smtp.Enabled)
+        {
+            _logger.LogDebug("Sending SMTP email to {SettingsEmailTo}", _settings.Email.To);
+        
+            var client = new SmtpClient(_settings.Email.Smtp.SmtpServer);
+            
+            var msg = new MailMessage(_settings.Email.From, _settings.Email.To)
             {
-                sb.AppendLine($"<div class='source'>{res.Title}</div>\n<div>");
-                sb.AppendLine(res.Html);
-                sb.AppendLine("</div>");
-            }
+                // ReSharper disable PossibleMultipleEnumeration
+                Subject = results.Any() ? string.Format(_settings.Email.SubjectResultsFormat, results.Sum(x => x.Items), results.Min(x => x.LastScan)) : _settings.Email.SubjectEmptyFormat,
+                // ReSharper restore PossibleMultipleEnumeration
+                SubjectEncoding = Encoding.UTF8,
+                BodyEncoding = Encoding.UTF8,
+                IsBodyHtml = true,
+                Body = sb.ToString()
+            };
+            
+            if (!string.IsNullOrWhiteSpace(_settings.Email.Smtp.User))
+                client.Credentials = new NetworkCredential(_settings.Email.Smtp.User, _settings.Email.Smtp.Password);
 
-            sb.AppendLine("</body>\n</html>");
-
-            msg.Body = sb.ToString();
-
-            if (string.IsNullOrEmpty(_settings.BodyFileName)) return;
-
-            _logger.LogDebug("Saving file");
-            File.WriteAllText($"{_settings.ResourceFolder}/{_settings.BodyFileName}", msg.Body);
-
-#if !DEBUG
-            _logger.LogDebug($"Sending email to {_settings.EmailTo}");
-            var client = new SmtpClient(_settings.SmtpServer);
-
-            if (!string.IsNullOrWhiteSpace(_settings.User))
-                client.Credentials = new NetworkCredential(_settings.User, _settings.Password);
-
-            if (_settings.AttachFile && !string.IsNullOrEmpty(_settings.BodyFileName))
-                msg.Attachments.Add(new Attachment(_settings.BodyFileName));
+            if (_settings.Email.AttachFile && !string.IsNullOrEmpty(_settings.Email.BodyFileName))
+                msg.Attachments.Add(new Attachment(_settings.Email.BodyFileName));
 
             try
             {
@@ -171,7 +166,39 @@ namespace QTHmon
             {
                 _logger.LogError(e.ToString());
             }
-#endif
+        }
+
+        if (_settings.Email.SendGrid.Enabled)
+        {
+            _logger.LogDebug("Sending SendGrid email to {SettingsEmailTo}", _settings.Email.To);
+            
+            var client = new SendGridClient(_settings.Email.SendGrid.ApiKey);
+            
+            var msg = new SendGridMessage
+            {
+                From = new EmailAddress(_settings.Email.From),
+                Subject = results.Any() ? string.Format(_settings.Email.SubjectResultsFormat, results.Sum(x => x.Items), results.Min(x => x.LastScan)) : _settings.Email.SubjectEmptyFormat,
+                HtmlContent = sb.ToString(),
+            };
+            
+            msg.AddTo(new EmailAddress(_settings.Email.To));
+
+            if (_settings.Email.AttachFile && !string.IsNullOrEmpty(_settings.Email.BodyFileName))
+            {
+                var bytes = await File.ReadAllBytesAsync(_settings.Email.BodyFileName);
+                msg.AddAttachment(_settings.Email.BodyFileName, Convert.ToBase64String(bytes));
+            }
+
+            try
+            {
+                var response = await client.SendEmailAsync(msg).ConfigureAwait(false);
+                if (!response.IsSuccessStatusCode)
+                    _logger.LogError(await response.Body.ReadAsStringAsync());
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e.ToString());
+            }
         }
     }
 }
