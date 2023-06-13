@@ -42,3 +42,4 @@ appsettings.*.json
 *.dotCover
 
 appsettings.development.json
+appsettings.production.json

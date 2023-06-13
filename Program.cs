@@ -1,46 +1,42 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using System;
-using System.Threading.Tasks;
 
-namespace QTHmon
+namespace QTHmon;
+
+internal static class Program
 {
-    internal static class Program
+    private static async Task<int> Main()
     {
-        private static async Task<int> Main()
-        {
-            var host = new HostBuilder()
-                .ConfigureAppConfiguration((ctx, cfg) =>
-                {
-                    ctx.HostingEnvironment.EnvironmentName = Environment.GetEnvironmentVariable("NETCOREAPP_ENVIRONMENT") ?? "production";
+        var host = new HostBuilder()
+            .ConfigureAppConfiguration((ctx, cfg) =>
+            {
+                ctx.HostingEnvironment.EnvironmentName = Environment.GetEnvironmentVariable("NETCOREAPP_ENVIRONMENT") ?? "production";
 
-                    cfg.AddJsonFile("appsettings.json", false)
+                cfg.AddJsonFile("appsettings.json", false)
                     .AddJsonFile($"appsettings.{ctx.HostingEnvironment.EnvironmentName}.json", true)
                     .AddEnvironmentVariables();
-                })
-                .ConfigureServices((ctx, svc) =>
-                {
-                    svc.Configure<ConsoleLifetimeOptions>(opt => opt.SuppressStatusMessages = true)
+            })
+            .ConfigureServices((ctx, svc) =>
+            {
+                svc.Configure<ConsoleLifetimeOptions>(opt => opt.SuppressStatusMessages = true)
                     .Configure<HostOptions>(opt => opt.ShutdownTimeout = TimeSpan.FromSeconds(10))
                     .Configure<AppSettings>(ctx.Configuration.GetSection("AppSettings"))
                     .AddSingleton<IHostedService, HostedService>()
                     .AddSingleton<IQthHandler, QthHandler>()
                     .AddSingleton<IEhamHandler, EhamHandler>();
-                })
-                .ConfigureLogging((ctx, cfg) =>
-                {
-                    cfg.ClearProviders()
+            })
+            .ConfigureLogging((ctx, cfg) =>
+            {
+                cfg.ClearProviders()
                     .AddConfiguration(ctx.Configuration.GetSection("Logging"))
                     .AddConsole()
                     .AddDebug();
-                })
-                .UseConsoleLifetime()
-                .Build();
+            })
+            .UseConsoleLifetime()
+            .Build();
 
-            await host.RunAsync();
-            return 0;
-        }
+        await host.RunAsync();
+        return 0;
     }
 }

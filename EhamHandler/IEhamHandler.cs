@@ -1,7 +1,6 @@
 ﻿// ReSharper disable once CheckNamespace
-namespace QTHmon
+namespace QTHmon;
+
+public interface IEhamHandler : ISwapHandler
 {
-    public interface IEhamHandler : ISwapHandler
-    {
-    }
 }
